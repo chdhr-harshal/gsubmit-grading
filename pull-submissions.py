@@ -27,17 +27,13 @@ parser.add_argument('--semester',
                     type=str,
                     default="current",
                     help="Semester in <Fall|Spring>-<YYYY> format e.g. Fall-2017")
-parser.add_argument('path',
+parser.add_argument('homework',
                     type=str,
                     default="data",
-                    help="Homework submission directory")
+                    help="Name of homework")
 parser.add_argument('deadline',
                     type=str,
                     help="Deadline in format YYYY-MM-DD")
-parser.add_argument('--grace',
-                    type=int,
-                    default=0,
-                    help="Grace period")
 parser.add_argument('--students',
                     type=str,
                     default="students.csv",
@@ -59,18 +55,22 @@ if not os.path.exists("grades"):
     os.makedirs("grades")
 
 # Create directory for submissions of the particular homework
-if os.path.exists(os.path.join("grades", args.path)):
-    rmtree(os.path.join("grades", args.path))
-os.makedirs(os.path.join("grades", args.path))
+if os.path.exists(os.path.join("grades", args.homework)):
+    rmtree(os.path.join("grades", args.homework))
+os.makedirs(os.path.join("grades", args.homework))
 
 # Create and clear directory for storing submission files
 if not os.path.exists("submissions"):
     os.makedirs("submissions")
 
 # Create directory for submissions of the particular homework
-if os.path.exists(os.path.join("submissions", args.path)):
-    rmtree(os.path.join("submissions", args.path))
-os.makedirs(os.path.join("submissions", args.path))
+if os.path.exists(os.path.join("submissions", args.homework)):
+    rmtree(os.path.join("submissions", args.homework))
+os.makedirs(os.path.join("submissions", args.homework))
+
+# Create directory for config files
+if not os.path.exists("configs"):
+    os.makedirs("configs")
 
 # Pull submissions
 submissions = []
@@ -78,7 +78,6 @@ submissions = []
 for index, student in enrolled.iterrows():
     if student['Username'] not in submission_students:
         print "Student {} has not made a submission ever".format(student['Username'])
-        continue
 
     student_dict = {}
     student_dict['Name'] = student['Name']
@@ -87,18 +86,21 @@ for index, student in enrolled.iterrows():
     student_dict['Filename'] = None
     student_dict['SubmissionDate'] = None
     student_dict['LateDays'] = 0
+    student_dict['Filename'] = None
+    student_dict['SubmissionDate'] = None
+    student_dict['LateDays'] = None
 
-    if os.path.exists(os.path.join(path, student['Username'], args.path)):
-        print "Pulling {} submission for student {}".format(args.path, student['Username'])
+    if os.path.exists(os.path.join(path, student['Username'], args.homework)):
+        print "Pulling {} submission for student {}".format(args.homework, student['Username'])
 
-        submission_dir = os.path.join(path, student['Username'], args.path)
+        submission_dir = os.path.join(path, student['Username'], args.homework)
         try:
             homework_file = os.listdir(submission_dir)[0]
         except:
             print "No file exists"
             continue
 
-        filepath = os.path.join(path, student['Username'], args.path, homework_file)
+        filepath = os.path.join(path, student['Username'], args.homework, homework_file)
         ctime = os.path.getctime(filepath)
         ctime = datetime.fromtimestamp(ctime, local_timezone)
         ctime = ctime.strftime("%Y-%m-%d %H:%M:%S")
@@ -106,13 +108,15 @@ for index, student in enrolled.iterrows():
 
         student_dict['Filename'] = student['Username'] + ".pdf"
         student_dict['SubmissionDate'] = ctime.strftime("%Y-%m-%d %H:%M:%S")
-        student_dict['LateDays'] = (ctime - datetime.strptime(args.deadline, "%Y-%m-%d %H:%M:%S")).days
+        student_dict['LateDays'] = (ctime - datetime.strptime(args.deadline, "%Y-%m-%d %H:%M:%S")).days + 1
+        if student_dict['LateDays'] < 0:
+            student_dict['LateDays'] = 0
 
         # Copy submission file and store as username.pdf
-        copyfile(filepath, os.path.join("submissions", args.path, student['Username'] + ".pdf"))
+        copyfile(filepath, os.path.join("submissions", args.homework, student['Username'] + ".pdf"))
 
     submissions.append(student_dict)
 
 # Create and save gradefile which would be filled later
 gradefile = pd.DataFrame(submissions)
-gradefile.to_csv(os.path.join("grades", args.path, "grades.csv"), sep=",", header=True, index=False)
+gradefile.to_csv(os.path.join("grades", args.homework, "grades.csv"), sep=",", header=True, index=False)
