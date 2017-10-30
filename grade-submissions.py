@@ -1,13 +1,14 @@
 #!/usr/bin/python
 
 '''
-Filename            : grading.py
+Filename            : grade-submissions.py
 Author              : Harshal Chaudhari
 Creation Date       : 2017-10-03
 Python Version      : 2.7
 '''
 
 import os
+import subprocess
 import time
 import argparse
 from datetime import datetime, timedelta
@@ -36,16 +37,29 @@ grades_df = pd.read_csv(os.path.join(GRADES_DIR, "grades.csv"), sep=",", header=
 f = open(os.path.join(CONFIG_DIR, args.homework + "_config.json"), "r")
 config = json.load(f)
 
+# Read already graded file, if present
+try:
+    partial_grades_df = pd.read_csv(os.path.join(GRADES_DIR, "partwise_grades.csv"), sep=",", header=0)
+except:
+    pass
+
 # Start grading
 grades_list = []
 
-for x in grades_df.index[:5]:
+for x in grades_df.index:
     grade_dict = {}
-    grade_dict['Username'] = grades_df.ix[x]['Username']
+    username = grades_df.ix[x]['Username']
+    try:
+        if username in partial_grades_df['Username'].values:
+            continue
+    except:
+        pass
+    grade_dict['Username'] = username
 
     for exercise in config['Exercises']:
         for part in exercise['Parts']:
             grade_dict[exercise['Name'] + "." + part['Name']] = 0
+            grade_dict[exercise['Name'] + "." + part['Name'] + "_comments"] = None
 
     grade_dict['Total'] = 0
 
@@ -54,6 +68,8 @@ for x in grades_df.index[:5]:
         continue
 
     color_print(str(x) + ": " + grades_df.ix[x]['Username'] + " ", color="black", highlight="yellow")
+    cmd = "evince -w " + os.path.join(SUBMISSIONS_DIR, grade_dict['Username']) + ".pdf"
+    p = subprocess.Popen("exec " + cmd, stdout=subprocess.PIPE, shell=True)
 
     for exercise in config['Exercises']:
         for part in exercise['Parts']:
@@ -64,6 +80,7 @@ for x in grades_df.index[:5]:
             grade_dict[exercise['Name'] + "." + part['Name'] + "_comments"] = raw_input("Comments: ")
             grade_dict['Total'] += grade_dict[exercise['Name'] + "." + part['Name']]
 
+    p.kill()
     print "-----------------------"
     color_print("Total grade: {}".format(grade_dict['Total']), color="green")
     print "-----------------------\n"
@@ -71,5 +88,18 @@ for x in grades_df.index[:5]:
 
     # Compile final grades df
     updated_grades_df = pd.DataFrame(grades_list)
+    try:
+        updated_grades_df = partial_grades_df.append(updated_grades_df)
+    except:
+        pass
     updated_grades_df.to_csv(os.path.join(GRADES_DIR, "partwise_grades.csv"), sep=",",
                             header=True, index=False)
+
+# Compile final grades df
+updated_grades_df = pd.DataFrame(grades_list)
+try:
+    updated_grades_df = partial_grades_df.append(updated_grades_df)
+except:
+    pass
+updated_grades_df.to_csv(os.path.join(GRADES_DIR, "partwise_grades.csv"), sep=",",
+                        header=True, index=False)
